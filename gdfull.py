@@ -4,8 +4,7 @@ import numpy as np
 import pandas as pd
 
 
-# df = pd.read_csv("Data\Weekly24-25.csv")
-# df=df.iloc[lambda x: x.index % 4 == 0]
+df = pd.read_csv("Data\Weekly24-25.csv", header = 0)
 
 def getMatrix(df):
 
@@ -16,58 +15,62 @@ def getMatrix(df):
         return None
 
     # Skip the first row which contains repeated headers
-    df_cleaned = df
-    # Extract each pair of Date and Close as its own table
-    AAPL = df_cleaned.iloc[:, [0, 1]].rename(columns={df.columns[0]: 'Date', df.columns[1]: 'Close'})
-    MSFT = df_cleaned.iloc[:, [3, 4]].rename(columns={df.columns[3]: 'Date', df.columns[4]: 'Close'})
-    NVDA = df_cleaned.iloc[:, [6, 7]].rename(columns={df.columns[6]: 'Date', df.columns[7]: 'Close'})
-    HD   = df_cleaned.iloc[:, [9, 10]].rename(columns={df.columns[9]: 'Date', df.columns[10]: 'Close'})
-    COST = df_cleaned.iloc[:, [12, 13]].rename(columns={df.columns[12]: 'Date', df.columns[13]: 'Close'})
+    
+    df_cleaned=df
+    
+    
+    dfs = []
+    i = 0
+    for c in df_cleaned:
+        if c[0:5] != "Unnam":
+            dfs.append([str(c[0:5]),df_cleaned.iloc[:, [i, i+1]].rename(columns={df.columns[i]: 'Date', df.columns[i+1]: 'Close'})])
+        i += 1
+    
 
-    # Optionally convert Close to numeric and Date to datetime
-    for stock in [AAPL, MSFT, NVDA, HD, COST]:
-        stock['Date'] = pd.to_datetime(stock['Date'])
-        stock['Close'] = pd.to_numeric(stock['Close'])
-
-    # Example: display AAPL data
-    AAPL['returns'] = AAPL['Close'].pct_change()
-    MSFT['returns'] = MSFT['Close'].pct_change()
-    NVDA['returns'] = NVDA['Close'].pct_change()
-    HD['returns'] = HD['Close'].pct_change()
-    COST['returns'] = COST['Close'].pct_change()
-    # print(MSFT)
+    for pair in dfs:
+        pair[1] = pair[1][pair[1]['Date'] != 'Date']
+        pair[1]['Date'] = pd.to_datetime(pair[1]['Date'], errors='coerce')
+        # pair[1]['Date'] = pd.to_datetime(pair[1]['Date'])
+        pair[1]['Close'] = pd.to_numeric(pair[1]['Close'])
+        pair[1]['Returns'] = pair[1]['Close'].pct_change()
+        # print(pair[1])
+    # print(dfs)
 
 
     #stock covariance 
     #initialize matrix
-    sigma = np.zeros((5,5),dtype=float)
-    stocks = [AAPL,MSFT, NVDA, HD, COST]
-    for j in range(len(stocks)):
-        ar = np.average(stocks[j]['returns'].dropna())
-        # print(get_var_name(stocks[j]))
-        v = np.zeros((5),dtype=float)
-        for i in range(len(stocks)):
-            avgReturn_other = np.average(stocks[i]['returns'].dropna())
-            otherDiffs = [x-avgReturn_other for x in stocks[i]['returns'].dropna()]
-            mainDiffs = [x-ar for x in stocks[j]['returns'].dropna()]
-            cov = sum([a*b for a,b in zip(otherDiffs,mainDiffs)])/len(AAPL)
-            # print(cov)
+    num = len(dfs)
+    sigma = np.zeros((num,num),dtype=float)
+    j = 0
+    for pair in dfs:
+        ar = np.average(pair[1]['Returns'].dropna())
+        # print(pair[0])
+        v = np.zeros((num),dtype=float)
+        i = 0
+        for cross in dfs:
+            avgReturn_other = np.average(cross[1]['Returns'].dropna())
+            otherDiffs = [x-avgReturn_other for x in cross[1]['Returns'].dropna()]
+            mainDiffs = [x-ar for x in pair[1]['Returns'].dropna()]
+            cov = sum([a*b for a,b in zip(otherDiffs,mainDiffs)])/len(pair[1])
             v[i] = cov
-            
+            if i < len(v)-1:
+                i+=1
         # print(v)
         sigma[j] = v
+        if j < len(sigma)-1:
+            j+=1
     # print(sigma)
 
 
 
     #holding avg returns
-    m = np.zeros(5)
-    for i in range(len(stocks)):
-        average_return = np.average(stocks[i]['returns'].dropna())
-        name = get_var_name(stocks[i])
-        # print(name,f"{average_return:.4f}")
+    m = np.zeros(num)
+    for i in range(len(dfs)):
+        average_return = np.average(dfs[i][1]["Returns"].dropna())
+        # print(dfs[i][0], average_return)
         m[i] = average_return
-    # print(f'returns vector: {m}')
+    # print(m)
     return [m,sigma]
+
 
 
